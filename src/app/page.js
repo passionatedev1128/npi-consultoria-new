@@ -6,6 +6,7 @@ import { FaqSection } from "./components/sections/faq-section";
 import { PropertyList } from "./components/sections/property-list";
 import { ActionSection } from "./components/sections/action-section";
 import { ListCities } from "./components/sections/list-cities";
+import { BairrosDestaque } from "@/app/components/sections/BairrosDestaque";
 import { Header } from "./components/ui/header";
 import { Footer } from "./components/ui/footer";
 import { ContactSection } from "./components/sections/contact-section";
@@ -179,6 +180,7 @@ export default async function Home() {
       <FeaturedCondosSection />
       <PropertyList />
       <ListCities />
+      <BairrosDestaque /> 
       <LuxuryGridSection />
       <AboutSection about={content?.sobre} />
       <ReviewSection stats={content?.stats} />

@@ -7,8 +7,16 @@ import { obterEstatisticasCache } from '@/app/utils/cache-invalidation';
 export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
+  console.log('[CACHE-STATS] Route accessed:', request.url);
+  
   try {
     const stats = obterEstatisticasCache();
+    
+    console.log('[CACHE-STATS] Stats retrieved successfully:', {
+      hits: stats.hits,
+      misses: stats.misses,
+      size: stats.size
+    });
     
     return NextResponse.json({
       success: true,
@@ -25,6 +33,7 @@ export async function GET(request) {
       {
         success: false,
         error: error.message || 'Error getting cache stats',
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
       },
       { status: 500 }
     );

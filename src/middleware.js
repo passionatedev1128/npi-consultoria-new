@@ -4,7 +4,7 @@ import { getCityValidSlugsSync, converterSlugCidadeSync } from "@/app/utils/url-
 import { getSlugFromCache } from "@/app/utils/slug-cache";
 
 // Reserved slugs that should NOT be cached (always check database)
-const RESERVED_SLUGS = ['busca', 'sobre', 'contato', 'admin', 'api', 'sitemap.xml', 'robots.txt'];
+const RESERVED_SLUGS = ['busca', 'sobre', 'contato', 'admin', 'api', 'sitemap.xml', 'robots.txt', 'bairros'];
 
 /**
  * Cache wrapper for getImovelById using new slug cache
@@ -1610,13 +1610,15 @@ export async function middleware(request) {
     '/admin',
     '/login',
     '/cadastro',
-    '/recuperar-senha'
+    '/recuperar-senha',
+    '/bairros'
   ];
 
   // MELHORIA: URLs que devem ser permitidas (patterns)
   const padroesPemitidos = [
     /^\/api\//,           // APIs
     /^\/admin\//,         // Admin routes
+    /^\/bairros\//,       // Bairros routes
     /^\/_next\//,         // Next.js assets
     /^\/favicon\./,       // Favicons
     /^\/robots\.txt$/,    // Robots
