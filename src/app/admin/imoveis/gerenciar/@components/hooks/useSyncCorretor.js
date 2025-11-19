@@ -13,6 +13,7 @@ export function useSyncCorretor(formData, mode) {
   const [syncError, setSyncError] = useState('');
   const [syncSuccess, setSyncSuccess] = useState('');
   const corretorAnteriorRef = useRef(null);
+  const initializedRef = useRef(false); // Para rastrear se já inicializamos o corretor inicial
   const [corretoresMap, setCorretoresMap] = useState(new Map());
 
   // Carregar mapa de corretores (nome -> codigoD) ao montar
@@ -60,11 +61,15 @@ export function useSyncCorretor(formData, mode) {
   }, []);
 
   // Guardar corretor inicial ao montar (modo edição)
+  // IMPORTANTE: Só definir uma vez quando o formData.Corretor é carregado pela primeira vez
   useEffect(() => {
-    if (mode === 'edit' && formData.Corretor && !corretorAnteriorRef.current) {
+    // Se estamos em modo edição e há um corretor, definir a referência inicial APENAS UMA VEZ
+    if (mode === 'edit' && formData.Corretor && !corretorAnteriorRef.current && !initializedRef.current) {
       corretorAnteriorRef.current = formData.Corretor;
-      console.log('📌 Corretor inicial detectado:', formData.Corretor);
+      initializedRef.current = true;
+      console.log('📌 Corretor inicial detectado (edit mode):', formData.Corretor);
     }
+    // Em modo create, não definir inicial (será definido no primeiro save após syncCorretor)
   }, [mode, formData.Corretor]);
 
   /**
@@ -134,10 +139,16 @@ export function useSyncCorretor(formData, mode) {
       const corretorAnterior = corretorAnteriorRef.current;
       const corretorAtual = nomeCorretorAtual || '';
 
-      // Se não mudou nada, não faz nada
-      if (corretorAnterior === corretorAtual) {
+      // Se não mudou nada E já está vinculado, não faz nada
+      // Mas se é a primeira vez (corretorAnterior é null) e há corretor, deve vincular
+      if (corretorAnterior === corretorAtual && corretorAnterior !== null) {
         console.log('✅ Corretor não mudou, sem necessidade de sincronização');
         return { success: true, message: 'Sem alterações' };
+      }
+      
+      // Se é a primeira vez e há corretor, deve vincular mesmo que corretorAnterior seja null
+      if (corretorAnterior === null && corretorAtual && corretorAtual.trim() !== '') {
+        console.log('🆕 Primeira vinculação detectada, vinculando corretor:', corretorAtual);
       }
 
       // PASSO 1: Desvincular do corretor anterior (se existir e for diferente)

@@ -1,6 +1,7 @@
 import { connectToDatabase } from "@/app/lib/mongodb";
 import Review from "@/app/models/Review";
 import { NextResponse } from "next/server";
+import { invalidarCacheImovel } from "@/app/utils/cache-invalidation";
 
 export const dynamic = 'force-dynamic';
 
@@ -83,6 +84,11 @@ export async function POST(request, { params }) {
     // Atualizar o imóvel
     const imovelAtualizado = await Review.findOneAndUpdate({ Codigo: codigo }, body, { new: true });
 
+    // CRITICAL: Invalidate slug cache after successful update
+    if (codigo) {
+      invalidarCacheImovel(codigo);
+    }
+
     return NextResponse.json({
       status: 200,
       success: true,
@@ -139,6 +145,11 @@ export async function PUT(request, { params }) {
       { $set: body },
       { new: true }
     );
+
+    // CRITICAL: Invalidate slug cache after successful update
+    if (codigo) {
+      invalidarCacheImovel(codigo);
+    }
 
     return NextResponse.json({
       status: 200,
@@ -197,6 +208,11 @@ export async function DELETE(request, { params }) {
         },
         { status: 404 }
       );
+    }
+
+    // CRITICAL: Invalidate slug cache after successful delete
+    if (codigo) {
+      invalidarCacheImovel(codigo);
     }
 
     return NextResponse.json({

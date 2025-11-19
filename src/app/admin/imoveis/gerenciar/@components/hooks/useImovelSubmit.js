@@ -217,7 +217,7 @@ export const useImovelSubmit = (formData, setIsModalOpen, mode = "create", imove
         if (!validation.isValid) {
           setError(validation.error);
           setIsSaving(false);
-          return;
+          return false; // Retornar false quando validação falha
         }
 
         const payload = preparePayload(formData);
@@ -231,10 +231,12 @@ export const useImovelSubmit = (formData, setIsModalOpen, mode = "create", imove
         });
 
         let result;
+        let saveSuccess = false;
 
         if (formData.Automacao) {
           result = await criarImovel(formData.Codigo, payload);
           if (result && result.success) {
+            saveSuccess = true;
             setSuccess("Imóvel cadastrado com sucesso!");
             setIsModalOpen(true);
 
@@ -273,6 +275,7 @@ export const useImovelSubmit = (formData, setIsModalOpen, mode = "create", imove
           }
 
           if (result && result.success) {
+            saveSuccess = true;
             setSuccess("Imóvel atualizado com sucesso!");
             setIsModalOpen(true);
           } else {
@@ -282,6 +285,7 @@ export const useImovelSubmit = (formData, setIsModalOpen, mode = "create", imove
           result = await criarImovel(formData.Codigo, payload);
 
           if (result && result.success) {
+            saveSuccess = true;
             setSuccess("Imóvel cadastrado com sucesso!");
             setIsModalOpen(true);
             try {
@@ -299,9 +303,13 @@ export const useImovelSubmit = (formData, setIsModalOpen, mode = "create", imove
             setError(result?.message || "Erro ao cadastrar imóvel");
           }
         }
+        
+        // Retornar resultado do save para permitir que o componente pai saiba se foi bem-sucedido
+        return saveSuccess;
       } catch (error) {
         console.error(`Erro ao ${mode === "edit" ? "atualizar" : "cadastrar"} imóvel:`, error);
         setError(`Ocorreu um erro ao ${mode === "edit" ? "atualizar" : "cadastrar"} o imóvel`);
+        return false; // Retornar false em caso de erro
       } finally {
         setIsSaving(false);
       }

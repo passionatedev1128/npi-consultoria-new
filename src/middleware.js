@@ -1,82 +1,15 @@
 // middleware.js - VERSÃO CORRIGIDA: Imóveis Vendidos OK | Condomínios OK | Deletados → HOME + CORREÇÕES GSC
 import { NextResponse } from "next/server";
 import { getCityValidSlugsSync, converterSlugCidadeSync } from "@/app/utils/url-slugs";
-// Edge-compatible cache using Map (works in Edge Runtime)
-// Note: This is per-instance cache, not shared across Edge instances
-const edgeCache = new Map();
-const cacheTimestamps = new Map();
-const CACHE_TTL = 300000; // 5 minutes in milliseconds
+import { getSlugFromCache } from "@/app/utils/slug-cache";
 
-// NodeCache will be loaded lazily (Edge Runtime may not support it)
-let nodeCache = null;
-let nodeCacheLoaded = false;
+// Reserved slugs that should NOT be cached (always check database)
+const RESERVED_SLUGS = ['busca', 'sobre', 'contato', 'admin', 'api', 'sitemap.xml', 'robots.txt'];
 
-// Helper function to load NodeCache (lazy loading for Edge Runtime compatibility)
-async function loadNodeCache() {
-  if (nodeCacheLoaded) return nodeCache;
-  
-  try {
-    const cacheModule = await import("@/app/lib/cache");
-    nodeCache = cacheModule.default;
-    nodeCacheLoaded = true;
-    console.log('[SLUG-CACHE] NodeCache loaded successfully');
-    return nodeCache;
-  } catch (error) {
-    nodeCacheLoaded = true; // Mark as loaded to prevent retries
-    console.log('[SLUG-CACHE] NodeCache not available (Edge Runtime), using Map cache:', error.message);
-    return null;
-  }
-}
-
-// Helper function to get from cache (tries NodeCache first, falls back to Map)
-async function getFromCache(key) {
-  // Try NodeCache if available
-  const cache = await loadNodeCache();
-  if (cache) {
-    try {
-      const value = cache.get(key);
-      if (value !== undefined) {
-        return value;
-      }
-    } catch (error) {
-      console.log('[SLUG-CACHE] NodeCache.get() failed, using Map cache:', error.message);
-    }
-  }
-  
-  // Fallback to Map cache
-  const cached = edgeCache.get(key);
-  if (cached) {
-    const timestamp = cacheTimestamps.get(key);
-    if (timestamp && Date.now() - timestamp < CACHE_TTL) {
-      return cached;
-    } else {
-      // Expired, remove it
-      edgeCache.delete(key);
-      cacheTimestamps.delete(key);
-    }
-  }
-  return undefined;
-}
-
-// Helper function to set in cache
-async function setInCache(key, value) {
-  // Try NodeCache if available
-  const cache = await loadNodeCache();
-  if (cache) {
-    try {
-      cache.set(key, value, 300);
-      return;
-    } catch (error) {
-      console.log('[SLUG-CACHE] NodeCache.set() failed, using Map cache:', error.message);
-    }
-  }
-  
-  // Fallback to Map cache
-  edgeCache.set(key, value);
-  cacheTimestamps.set(key, Date.now());
-}
-
-// Cache wrapper for getImovelById with logging
+/**
+ * Cache wrapper for getImovelById using new slug cache
+ * Returns full response object for backward compatibility
+ */
 async function getImovelByIdCached(id) {
   console.log('[DEBUG] getImovelByIdCached called with ID:', id);
   
@@ -85,37 +18,40 @@ async function getImovelByIdCached(id) {
     throw new Error('Invalid ID provided to getImovelByIdCached');
   }
   
-  const cacheKey = `imovel:${id}`;
-  console.log('[DEBUG] Cache key:', cacheKey);
-  
   try {
-    const cached = await getFromCache(cacheKey);
-    console.log('[DEBUG] Cache get result:', cached !== undefined ? 'FOUND' : 'NOT FOUND');
+    // Use new slug cache system
+    const { getImovelById } = await import('@/app/services');
+    console.log('[DEBUG] Calling getSlugFromCache for imovel:', id);
+    const cacheResult = await getSlugFromCache('imovel', id, getImovelById);
     
-    if (cached !== undefined) {
+    // Log cache result for visibility
+    if (cacheResult.fromCache) {
       console.log(`[SLUG-CACHE] HIT: imovel:${id}`);
-      return cached;
+    } else {
+      console.log(`[SLUG-CACHE] MISS: imovel:${id} → Fetched from DB, now cached`);
     }
     
-    console.log(`[SLUG-CACHE] MISS: imovel:${id}`);
-    
-    const { getImovelById } = await import('@/app/services');
-    console.log('[DEBUG] Calling getImovelById service...');
-    const response = await getImovelById(id);
-    console.log('[DEBUG] getImovelById response received:', !!response);
-    
-    // Store in cache
-    await setInCache(cacheKey, response);
-    console.log(`[SLUG-CACHE] Cached: imovel:${id}`);
-    
-    return response;
+    // Return response in expected format { data: {...} }
+    if (cacheResult.exists && cacheResult.data) {
+      return { data: cacheResult.data };
+    } else {
+      // Property doesn't exist - return null to trigger 404
+      return null;
+    }
   } catch (error) {
+    // If error is 404, return null instead of throwing
+    if (error.response?.status === 404 || error.statusCode === 404) {
+      return null;
+    }
     console.error(`[SLUG-CACHE] Error fetching imovel:${id}:`, error);
     throw error;
   }
 }
 
-// Cache wrapper for getCondominioPorSlug with logging
+/**
+ * Cache wrapper for getCondominioPorSlug using new slug cache
+ * Returns full response object for backward compatibility
+ */
 async function getCondominioPorSlugCached(slug) {
   console.log('[DEBUG] getCondominioPorSlugCached called with slug:', slug);
   
@@ -124,31 +60,54 @@ async function getCondominioPorSlugCached(slug) {
     throw new Error('Invalid slug provided to getCondominioPorSlugCached');
   }
   
-  const cacheKey = `condominio:${slug}`;
-  console.log('[DEBUG] Cache key:', cacheKey);
+  // Skip cache for reserved slugs (always check database)
+  if (RESERVED_SLUGS.includes(slug.toLowerCase())) {
+    console.log(`[SLUG-CACHE] Reserved slug detected, skipping cache: ${slug}`);
+    const { getCondominioPorSlug } = await import('@/app/services');
+    const response = await getCondominioPorSlug(slug);
+    return response;
+  }
   
   try {
-    const cached = await getFromCache(cacheKey);
-    console.log('[DEBUG] Cache get result:', cached !== undefined ? 'FOUND' : 'NOT FOUND');
+    // Use new slug cache system
+    const { getCondominioPorSlug } = await import('@/app/services');
+    console.log('[DEBUG] Calling getSlugFromCache for condominio:', slug);
+    const cacheResult = await getSlugFromCache('condominio', slug, getCondominioPorSlug);
     
-    if (cached !== undefined) {
+    // Log cache result for visibility
+    if (cacheResult.fromCache) {
       console.log(`[SLUG-CACHE] HIT: condominio:${slug}`);
-      return cached;
+    } else {
+      console.log(`[SLUG-CACHE] MISS: condominio:${slug} → Fetched from DB, now cached`);
     }
     
-    console.log(`[SLUG-CACHE] MISS: condominio:${slug}`);
+    // Handle redirects (301 status)
+    if (cacheResult.redirect) {
+      return {
+        status: 301,
+        statusCode: 301,
+        redirect: cacheResult.redirect,
+        data: null,
+      };
+    }
     
-    const { getCondominioPorSlug } = await import('@/app/services');
-    console.log('[DEBUG] Calling getCondominioPorSlug service...');
-    const response = await getCondominioPorSlug(slug);
-    console.log('[DEBUG] getCondominioPorSlug response received:', !!response);
-    
-    // Store in cache
-    await setInCache(cacheKey, response);
-    console.log(`[SLUG-CACHE] Cached: condominio:${slug}`);
-    
-    return response;
+    // Return response in expected format { data: {...}, imoveisRelacionados: [...] }
+    if (cacheResult.exists && cacheResult.data) {
+      // Preserve imoveisRelacionados if present
+      return {
+        data: cacheResult.data.data || cacheResult.data,
+        imoveisRelacionados: cacheResult.data.imoveisRelacionados || [],
+        statusCode: 200,
+      };
+    } else {
+      // Condominium doesn't exist - return null to trigger 404
+      return null;
+    }
   } catch (error) {
+    // If error is 404, return null instead of throwing
+    if (error.response?.status === 404 || error.statusCode === 404) {
+      return null;
+    }
     console.error(`[SLUG-CACHE] Error fetching condominio:${slug}:`, error);
     throw error;
   }
@@ -1063,16 +1022,18 @@ export async function middleware(request) {
       return create404Response(pathname);
     }
     
-    let targetSlug = incomingSlug;
+    // CRITICAL FIX: Use same normalization logic as PATTERN 3 to prevent redirect chain
     try {
       const response = await getImovelByIdCached(id);
       if (response?.data) {
         const imovel = response.data;
-        const { shouldIndexProperty, normalizeSlug } = await import('@/app/utils/slug-validator');
+        const { shouldIndexProperty, normalizeSlug, areSlugsSemanticallyEquivalent } = await import('@/app/utils/slug-validator');
         if (!shouldIndexProperty(imovel)) {
           console.log(`[MIDDLEWARE] Imóvel ${id} não deve ser indexado (redirect pattern) → 404`);
           return create404Response(pathname);
         }
+        
+        // Use EXACT same logic as PATTERN 3 to ensure no redirect chain
         let normalizedDatabaseSlug = normalizeSlug(imovel.Slug);
         if (!normalizedDatabaseSlug && imovel.Empreendimento) {
           normalizedDatabaseSlug = imovel.Empreendimento
@@ -1087,9 +1048,20 @@ export async function middleware(request) {
         } else if (!normalizedDatabaseSlug) {
           normalizedDatabaseSlug = `imovel-${id}`;
         }
-        if (normalizedDatabaseSlug) {
-          targetSlug = normalizedDatabaseSlug;
-        }
+        
+        // CRITICAL: Check if incoming slug is already semantically equivalent to canonical
+        // If so, redirect to exact canonical (prevents PATTERN 3 from redirecting again)
+        const normalizedIncomingSlug = normalizeSlug(incomingSlug) || incomingSlug;
+        const isSemanticallyEquivalent = areSlugsSemanticallyEquivalent(incomingSlug, normalizedDatabaseSlug);
+        
+        // Always redirect to exact canonical slug (same as PATTERN 3 expects)
+        const formatoCorreto = `/imovel-${id}/${normalizedDatabaseSlug}`;
+        console.log(`[MIDDLEWARE] Formato incorreto (consolidado): ${pathname} → ${formatoCorreto}`);
+        const redirectResponse = NextResponse.redirect(new URL(formatoCorreto, origin), 301);
+        // CRITICAL FIX: Add cache headers for permanent redirects
+        redirectResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        ensureRedirectNoIndex(redirectResponse);
+        return redirectResponse;
       } else {
         console.log(`[MIDDLEWARE] Imóvel ${id} não encontrado ao normalizar formato incorreto → 404`);
         return create404Response(pathname);
@@ -1098,25 +1070,59 @@ export async function middleware(request) {
       console.error(`[MIDDLEWARE] Erro ao obter slug canônico para imóvel ${id}:`, error);
       return create404Response(pathname);
     }
-    
-    const formatoCorreto = `/imovel-${id}/${targetSlug}`;
-    console.log(`[MIDDLEWARE] Formato incorreto: ${pathname} → ${formatoCorreto}`);
-    const redirectResponse = NextResponse.redirect(new URL(formatoCorreto, origin), 301);
-    // CRITICAL FIX: Add cache headers for permanent redirects
-    redirectResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-    ensureRedirectNoIndex(redirectResponse);
-    return redirectResponse;
   }
   
-  // PATTERN 2: /imovel/ID (sem slug, formato incorreto) → /imovel-ID/slug
+  // PATTERN 2: /imovel/ID (sem slug, formato incorreto) → /imovel-ID/slug (CONSOLIDATED to prevent redirect chain)
   const formatoErradoSemSlugMatch = pathname.match(/^\/imovel\/(\d+)$/);
   if (formatoErradoSemSlugMatch) {
     const id = formatoErradoSemSlugMatch[1];
-    console.log(`[MIDDLEWARE] Formato incorreto sem slug: ${pathname}`);
-    // Redirect para versão correta sem slug (será tratado abaixo)
-    const redirectResponse = NextResponse.redirect(new URL(`/imovel-${id}`, origin), 301);
-    ensureRedirectNoIndex(redirectResponse);
-    return redirectResponse;
+    console.log(`[MIDDLEWARE] Formato incorreto sem slug: ${pathname} → Buscando slug para redirecionamento direto`);
+    
+    try {
+      const response = await getImovelByIdCached(id);
+      
+      if (response?.data) {
+        const imovel = response.data;
+        const { normalizeSlug, shouldIndexProperty } = await import('@/app/utils/slug-validator');
+
+        if (!shouldIndexProperty(imovel)) {
+          console.log(`[MIDDLEWARE] Imóvel ${id} não deve ser indexado → 404`);
+          return create404Response(pathname);
+        }
+
+        let slugBasico = normalizeSlug(imovel.Slug);
+        
+        // If slug is invalid or missing, generate from Empreendimento
+        if (!slugBasico && imovel.Empreendimento) {
+          slugBasico = imovel.Empreendimento
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+            .replace(/[^a-z0-9\s-]/g, '') // Remove caracteres especiais
+            .replace(/\s+/g, '-') // Substitui espaços por hífens
+            .replace(/-+/g, '-') // Remove hífens duplos
+            .replace(/^-|-$/g, '') // Remove hífens do início e fim
+            || `imovel-${id}`;
+        } else if (!slugBasico) {
+          slugBasico = `imovel-${id}`;
+        }
+        
+        // CRITICAL FIX: Redirect directly to slugged URL (prevents redirect chain)
+        const correctUrl = `/imovel-${id}/${slugBasico}`;
+        console.log(`[MIDDLEWARE] Redirecionamento consolidado: ${pathname} → ${correctUrl}`);
+        const redirectResponse = NextResponse.redirect(new URL(correctUrl, origin), 301);
+        redirectResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        ensureRedirectNoIndex(redirectResponse);
+        return redirectResponse;
+      } else {
+        // Property doesn't exist → 404
+        console.log(`[MIDDLEWARE] Imóvel ${id} não encontrado → 404`);
+        return create404Response(pathname);
+      }
+    } catch (error) {
+      console.error(`[MIDDLEWARE] Erro ao buscar imóvel ${id}:`, error);
+      return create404Response(pathname);
+    }
   }
 
   // PATTERN 3: /imovel-ID/slug/ → /imovel-ID/slug (trailing slash) + slug validation
@@ -1164,15 +1170,57 @@ export async function middleware(request) {
     return redirectResponse;
   }
 
-  // PATTERN 4: /imovel-ID/ → /imovel-ID (trailing slash sem slug)
+  // PATTERN 4: /imovel-ID/ → /imovel-ID/slug (CONSOLIDATED to prevent redirect chain)
   const imovelSemSlugTrailingMatch = pathname.match(/^\/imovel-(\d+)\/$/);
   if (imovelSemSlugTrailingMatch) {
     const id = imovelSemSlugTrailingMatch[1];
-    const semTrailingSlash = `/imovel-${id}`;
-    console.log(`[MIDDLEWARE] TRAILING SLASH: ${pathname} → ${semTrailingSlash}`);
-    const redirectResponse = NextResponse.redirect(new URL(semTrailingSlash, origin), 301);
-    ensureRedirectNoIndex(redirectResponse);
-    return redirectResponse;
+    console.log(`[MIDDLEWARE] Trailing slash sem slug: ${pathname} → Buscando slug para redirecionamento direto`);
+    
+    try {
+      const response = await getImovelByIdCached(id);
+      
+      if (response?.data) {
+        const imovel = response.data;
+        const { normalizeSlug, shouldIndexProperty } = await import('@/app/utils/slug-validator');
+
+        if (!shouldIndexProperty(imovel)) {
+          console.log(`[MIDDLEWARE] Imóvel ${id} não deve ser indexado → 404`);
+          return create404Response(pathname);
+        }
+
+        let slugBasico = normalizeSlug(imovel.Slug);
+        
+        // If slug is invalid or missing, generate from Empreendimento
+        if (!slugBasico && imovel.Empreendimento) {
+          slugBasico = imovel.Empreendimento
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '') // Remove acentos
+            .replace(/[^a-z0-9\s-]/g, '') // Remove caracteres especiais
+            .replace(/\s+/g, '-') // Substitui espaços por hífens
+            .replace(/-+/g, '-') // Remove hífens duplos
+            .replace(/^-|-$/g, '') // Remove hífens do início e fim
+            || `imovel-${id}`;
+        } else if (!slugBasico) {
+          slugBasico = `imovel-${id}`;
+        }
+        
+        // CRITICAL FIX: Redirect directly to slugged URL (prevents redirect chain)
+        const correctUrl = `/imovel-${id}/${slugBasico}`;
+        console.log(`[MIDDLEWARE] Redirecionamento consolidado (trailing slash): ${pathname} → ${correctUrl}`);
+        const redirectResponse = NextResponse.redirect(new URL(correctUrl, origin), 301);
+        redirectResponse.headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+        ensureRedirectNoIndex(redirectResponse);
+        return redirectResponse;
+      } else {
+        // Property doesn't exist → 404
+        console.log(`[MIDDLEWARE] Imóvel ${id} não encontrado → 404`);
+        return create404Response(pathname);
+      }
+    } catch (error) {
+      console.error(`[MIDDLEWARE] Erro ao buscar imóvel ${id}:`, error);
+      return create404Response(pathname);
+    }
   }
 
   // PATTERN 5: URLs 404 de redes sociais → Redirect to actual social media pages

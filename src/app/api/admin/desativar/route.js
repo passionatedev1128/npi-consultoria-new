@@ -4,6 +4,7 @@ import ImovelInativo from "@/app/models/ImovelInativo";
 import Imovel from "@/app/models/Imovel";
 import { NextResponse } from "next/server";
 import cache from "@/app/lib/cache";
+import { invalidarCacheImovel } from "@/app/utils/cache-invalidation";
 
 export const dynamic = 'force-dynamic';
 
@@ -64,6 +65,9 @@ export async function POST(request) {
         cache.del(key);
       }
     });
+
+    // CRITICAL: Invalidate slug cache after successful deactivation
+    invalidarCacheImovel(codigo);
 
     return NextResponse.json({
       status: 200,

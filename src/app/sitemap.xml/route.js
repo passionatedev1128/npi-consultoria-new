@@ -125,12 +125,27 @@ export async function GET() {
         xmlns:mobile="http://www.google.com/schemas/sitemap-mobile/1.0"
         xmlns:image="http://www.google.com/schemas/sitemap-image/1.1"
         xmlns:video="http://www.google.com/schemas/sitemap-video/1.1">
-${sitemap.map((entry) => `  <url>
+${sitemap.map((entry) => {
+  // CRITICAL FIX: Ensure lastModified is always a valid Date before calling toISOString()
+  let lastModStr = '';
+  if (entry.lastModified) {
+    try {
+      const dateObj = entry.lastModified instanceof Date ? entry.lastModified : safeDate(entry.lastModified);
+      if (!isNaN(dateObj.getTime())) {
+        lastModStr = `<lastmod>${dateObj.toISOString()}</lastmod>`;
+      }
+    } catch (error) {
+      // Silently skip invalid dates
+      console.error('[SITEMAP] Invalid date for entry:', entry.url, error);
+    }
+  }
+  return `  <url>
     <loc>${entry.url}</loc>
-    ${entry.lastModified ? `<lastmod>${entry.lastModified.toISOString()}</lastmod>` : ''}
+    ${lastModStr}
     ${entry.changeFrequency ? `<changefreq>${entry.changeFrequency}</changefreq>` : ''}
     ${entry.priority ? `<priority>${entry.priority}</priority>` : ''}
-  </url>`).join('\n')}
+  </url>`;
+}).join('\n')}
 </urlset>`,
             {
                 headers: {

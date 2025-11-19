@@ -123,9 +123,11 @@ export default function GerenciarImovelClient() {
   };
 
   // Função personalizada para mudar posição das imagens
+  // NOTA: Esta função é chamada pelo ImagesSection, mas o ImagesSection já faz a reordenação
+  // via onUpdatePhotos. Esta função serve apenas como fallback/validação.
   const handleChangeImagePosition = (codigo, targetPosition) => {
     try {
-      console.log('Mudando posição:', { codigo, targetPosition });
+      console.log('Mudando posição (fallback):', { codigo, targetPosition });
       
       if (!formData.Foto || !Array.isArray(formData.Foto) || formData.Foto.length === 0) {
         console.error('Nenhuma foto disponível');
@@ -161,10 +163,11 @@ export default function GerenciarImovelClient() {
         // Inserir na nova posição
         newPhotos.splice(newPosition, 0, movedPhoto);
         
-        // Atualizar ordem de todas as fotos
+        // Atualizar ordem de todas as fotos (preservar tipoOrdenacao se existir)
         const reorderedPhotos = newPhotos.map((photo, idx) => ({
           ...photo,
-          Ordem: idx + 1
+          Ordem: idx, // 0-based para manter consistência com ImagesSection
+          tipoOrdenacao: photo.tipoOrdenacao || 'manual' // Marcar como manual
         }));
 
         // Atualizar estado
@@ -749,35 +752,47 @@ export default function GerenciarImovelClient() {
       // PASSO 1: Salvar o imóvel primeiro
       const submitResult = await handleSubmit(e);
       
-      // PASSO 2: Se salvou com sucesso E tem corretor selecionado, sincronizar
-      if (submitResult !== false && formData.Corretor && formData.Corretor.trim() !== '') {
-        console.log('🔄 Iniciando sincronização automática do corretor...');
-        
+      // PASSO 2: Se salvou com sucesso, sincronizar corretor (se houver)
+      // submitResult será true se salvou com sucesso, false caso contrário
+      if (submitResult === true) {
         // Usar o código do imóvel (novo ou editado)
-        const codigoImovel = mode === 'create' ? newImovelCode : formData.Codigo;
+        // Priorizar formData.Codigo (pode ter sido atualizado após save)
+        // Fallback para newImovelCode em modo create
+        const codigoImovel = formData.Codigo || (mode === 'create' ? newImovelCode : null);
         
         if (codigoImovel) {
-          const syncResult = await syncCorretor(codigoImovel, formData.Corretor);
-          
-          if (syncResult.success) {
-            console.log('✅ Sincronização automática concluída!');
-            if (syncResult.vinculado) {
-              setSuccess(`Imóvel salvo e vinculado automaticamente ao corretor ${formData.Corretor}`);
-            }
+          console.log('🔍 Código do imóvel para sincronização:', codigoImovel, 'mode:', mode);
+          // Sempre tentar sincronizar se há corretor OU se havia corretor anterior (para desvincular)
+          if (formData.Corretor && formData.Corretor.trim() !== '') {
+            console.log('🔄 Iniciando sincronização automática do corretor...');
             
-            // Se é criação, resetar corretor anterior para o novo
-            if (mode === 'create') {
-              resetCorretorAnterior(formData.Corretor);
+            const syncResult = await syncCorretor(codigoImovel, formData.Corretor);
+            
+            if (syncResult.success) {
+              console.log('✅ Sincronização automática concluída!');
+              if (syncResult.vinculado) {
+                setSuccess(`Imóvel salvo e vinculado automaticamente ao corretor ${formData.Corretor}`);
+              }
+              
+              // Se é criação, resetar corretor anterior para o novo
+              if (mode === 'create') {
+                resetCorretorAnterior(formData.Corretor);
+              }
+            } else {
+              console.warn('⚠️ Imóvel salvo, mas houve erro na sincronização:', syncResult.error);
+              setError(`Imóvel salvo, mas erro ao vincular corretor: ${syncResult.error}`);
             }
           } else {
-            console.warn('⚠️ Imóvel salvo, mas houve erro na sincronização:', syncResult.error);
-            setError(`Imóvel salvo, mas erro ao vincular corretor: ${syncResult.error}`);
+            // Se não há corretor mas havia um anterior, desvincular
+            console.log('🔄 Corretor removido, desvinculando...');
+            const syncResult = await syncCorretor(codigoImovel, '');
+            if (syncResult.success) {
+              console.log('✅ Corretor desvinculado com sucesso');
+            }
           }
         } else {
           console.warn('⚠️ Código do imóvel não disponível para sincronização');
         }
-      } else if (submitResult !== false) {
-        console.log('✅ Imóvel salvo sem corretor vinculado');
       }
       
     } catch (error) {

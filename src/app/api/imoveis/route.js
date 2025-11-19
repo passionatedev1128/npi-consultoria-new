@@ -7,6 +7,7 @@ import cache from "@/app/lib/cache";
 import ImovelAtivo from "@/app/models/ImovelAtivo";
 import ImovelInativo from "@/app/models/ImovelInativo";
 import { onPropertyChange } from "@/app/utils/city-sync-helper";
+import { invalidarCacheImovel } from "@/app/utils/cache-invalidation";
 
 export const dynamic = 'force-dynamic';
 
@@ -376,6 +377,11 @@ export async function POST(request) {
       }
     });
 
+    // CRITICAL: Invalidate slug cache after successful create/update
+    if (dadosImovel.Codigo) {
+      invalidarCacheImovel(dadosImovel.Codigo);
+    }
+
     // Triggerar sincronização de cidades se houver cidade no imóvel
     if (dadosImovel.Cidade) {
       const operation = imovelExistente ? 'update' : 'create';
@@ -419,6 +425,11 @@ export async function DELETE(request) {
     await Imovel.deleteOne({ Codigo: id });
     await ImovelAtivo.deleteOne({ Codigo: id });
     await ImovelInativo.deleteOne({ Codigo: id });
+
+    // CRITICAL: Invalidate slug cache after successful delete
+    if (id) {
+      invalidarCacheImovel(id);
+    }
 
     // Triggerar sincronização se o imóvel tinha cidade
     if (imovelParaDeletar?.Cidade) {
@@ -515,6 +526,11 @@ export async function PUT(request) {
         cache.del(key);
       }
     });
+
+    // CRITICAL: Invalidate slug cache after successful update
+    if (dadosImovel.Codigo) {
+      invalidarCacheImovel(dadosImovel.Codigo);
+    }
 
     // Triggerar sincronização de cidades se houver cidade no imóvel
     if (dadosImovel.Cidade) {

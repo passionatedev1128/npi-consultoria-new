@@ -1,6 +1,7 @@
 import { connectToDatabase } from "@/app/lib/mongodb";
 import Imovel from "@/app/models/Imovel";
 import { NextResponse } from "next/server";
+import { invalidarCacheImovel } from "@/app/utils/cache-invalidation";
 
 export const dynamic = 'force-dynamic';
 
@@ -79,6 +80,12 @@ export async function PUT(request, { params }) {
 
     console.log('Imóvel atualizado:', imovelAtualizado.Codigo);
     console.log('Video salvo:', imovelAtualizado.Video);
+
+    // CRITICAL: Invalidate slug cache after successful update
+    const codigo = imovelAtualizado?.Codigo || id;
+    if (codigo) {
+      invalidarCacheImovel(codigo);
+    }
 
     return NextResponse.json({
       status: 200,

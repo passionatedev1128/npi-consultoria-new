@@ -2,6 +2,7 @@ import { connectToDatabase } from "@/app/lib/mongodb";
 import Imovel from "@/app/models/Imovel";
 import ImovelAtivo from "@/app/models/ImovelAtivo";
 import { NextResponse } from "next/server";
+import { invalidarCacheImovel } from "@/app/utils/cache-invalidation";
 
 export const dynamic = 'force-dynamic';
 
@@ -75,6 +76,12 @@ export async function PUT(request, { params }) {
       );
     }
 
+    // CRITICAL: Invalidate slug cache after successful update
+    const codigo = imovelAtualizado?.Codigo || id;
+    if (codigo) {
+      invalidarCacheImovel(codigo);
+    }
+
     return NextResponse.json({
       status: 200,
       success: true,
@@ -128,6 +135,11 @@ export async function DELETE(request, { params }) {
       );
     }
 
+    // CRITICAL: Invalidate slug cache after successful delete
+    if (id) {
+      invalidarCacheImovel(id);
+    }
+
     return NextResponse.json({
       status: 200,
       success: true,
@@ -179,6 +191,11 @@ export async function POST(request, { params }) {
 
     const novoImovelAtivo = new ImovelAtivo(dadosImovel);
     const imovelAtivoSalvo = await novoImovelAtivo.save();
+
+    // CRITICAL: Invalidate slug cache after successful create
+    if (id) {
+      invalidarCacheImovel(id);
+    }
 
     return NextResponse.json(
       {

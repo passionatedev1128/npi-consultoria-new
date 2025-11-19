@@ -345,6 +345,10 @@ export async function atualizarImovel(codigo, dadosImovel) {
     const response = await axiosClient.put(`/imoveis/${codigo}`, dadosImovel);
 
     if (response && response.status >= 200 && response.status < 300) {
+      // CRITICAL: Invalidate cache AFTER successful update
+      const { invalidarCacheImovel } = await import('@/app/utils/cache-invalidation');
+      invalidarCacheImovel(codigo);
+      
       return {
         success: true,
         data: response.data,
@@ -386,6 +390,10 @@ export async function excluirImovel(codigo) {
     const response = await axiosClient.delete(`/imoveis/${codigo}`);
 
     if (response && response.status >= 200 && response.status < 300) {
+      // CRITICAL: Invalidate cache AFTER successful delete
+      const { invalidarCacheImovel } = await import('@/app/utils/cache-invalidation');
+      invalidarCacheImovel(codigo);
+      
       return {
         success: true,
         message: "Imóvel excluído com sucesso",
@@ -413,6 +421,13 @@ export async function cadastrarImovel(dadosImovel) {
     const response = await axiosClient.post(`/imoveis`, dadosImovel);
 
     if (response && response.status >= 200 && response.status < 300) {
+      // CRITICAL: Invalidate cache AFTER successful create (prevents 404 cache)
+      const codigo = response.data?.Codigo || dadosImovel?.Codigo;
+      if (codigo) {
+        const { invalidarCacheImovel } = await import('@/app/utils/cache-invalidation');
+        invalidarCacheImovel(codigo);
+      }
+      
       return {
         success: true,
         data: response.data,
@@ -634,6 +649,10 @@ export async function desativarImovel(codigo) {
     const response = await axiosClient.post("/admin/desativar", { codigo });
 
     if (response && response.status >= 200 && response.status < 300) {
+      // CRITICAL: Invalidate cache AFTER successful deactivation
+      const { invalidarCacheImovel } = await import('@/app/utils/cache-invalidation');
+      invalidarCacheImovel(codigo);
+      
       return {
         success: true,
         message: "Imóvel desativado com sucesso",

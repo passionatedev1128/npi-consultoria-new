@@ -1,10 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   trailingSlash: false,
-  skipTrailingSlashRedirect: true,
-  
-  // REMOVIDO: skipTrailingSlashRedirect não existe no Next.js
-  // skipTrailingSlashRedirect: true, // LINHA DELETADA
   
   // EXPERIMENTAL SEGURO (sem optimizeCss)
   experimental: {

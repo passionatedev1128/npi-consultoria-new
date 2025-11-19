@@ -55,9 +55,8 @@ const FormField = ({
           value={value || ""}
           onChange={onChange}
           rows={4}
-          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${
-            isRequired && !isValid ? "border-red-300 bg-red-50" : ""
-          }`}
+          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${isRequired && !isValid ? "border-red-300 bg-red-50" : ""
+            }`}
         />
       ) : type === "select" ? (
         <select
@@ -65,11 +64,11 @@ const FormField = ({
           name={name}
           value={value || ""}
           onChange={onChange}
-          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${
-            isRequired && !isValid ? "border-red-300 bg-red-50" : ""
-          }`}
+          disabled={disabled}
+          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${isRequired && !isValid ? "border-red-300 bg-red-50" : ""
+            } ${disabled ? "bg-gray-100 cursor-not-allowed" : ""}`}
         >
-          <option value="">Selecione uma opção</option>
+          <option value="">{placeholder || "Selecione uma opção"}</option>
           {options?.map((option) => (
             <option key={`${elementId}-${option.value}`} value={option.value}>
               {option.label}
@@ -83,9 +82,8 @@ const FormField = ({
           name={name}
           value={displayValue || ""}
           onChange={onChange}
-          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${
-            isRequired && !isValid ? "border-red-300 bg-red-50" : ""
-          }`}
+          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${isRequired && !isValid ? "border-red-300 bg-red-50" : ""
+            }`}
           placeholder="R$ 0"
         />
       ) : isAreaField ? (
@@ -95,9 +93,8 @@ const FormField = ({
           name={name}
           value={value || ""}
           onChange={handleAreaChange}
-          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${
-            isRequired && !isValid ? "border-red-300 bg-red-50" : ""
-          } ${className || ""}`}
+          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${isRequired && !isValid ? "border-red-300 bg-red-50" : ""
+            } ${className || ""}`}
           placeholder={isAreaField ? "Ex: 120" : placeholder || ""}
           disabled={disabled}
           readOnly={readOnly}
@@ -109,9 +106,8 @@ const FormField = ({
           name={name}
           value={value || ""}
           onChange={onChange}
-          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${
-            isRequired && !isValid ? "border-red-300 bg-red-50" : ""
-          } ${className || ""}`}
+          className={`border px-4 py-2 text-zinc-700 w-full text-[10px] rounded-md focus:outline-none focus:ring-black focus:border-black ${isRequired && !isValid ? "border-red-300 bg-red-50" : ""
+            } ${className || ""}`}
           placeholder={placeholder || ""}
           disabled={disabled}
           readOnly={readOnly}

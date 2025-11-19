@@ -607,6 +607,19 @@ export default async function ImovelPage({ params }) {
       notFound(); // Could use 410 status here if Next.js supported it in pages
     }
     
+    // FIXED: Check for absolutely minimal content (soft 404 prevention for GSC)
+    const hasFotos = imovel.Foto && Array.isArray(imovel.Foto) && imovel.Foto.length > 0;
+    const hasDescricao = imovel.Descricao || imovel.DescricaoUnidades || imovel.DescricaoDiferenciais;
+    const hasMetragem = imovel.AreaPrivativa || imovel.AreaConstruida || imovel.Metragem1 || imovel.Metragem2;
+    const hasValor = imovel.ValorVenda || imovel.ValorLocacao;
+    
+    // Require at least 2 of: photos, description, metragem, or valor (minimum content threshold)
+    const contentScore = [hasFotos, hasDescricao, hasMetragem, hasValor].filter(Boolean).length;
+    if (contentScore < 2) {
+      console.log(`[IMOVEL-PAGE] Imóvel com conteúdo muito limitado (soft 404): ${id} → 404`);
+      notFound();
+    }
+    
     // FIXED: Normalize slug from database (handles double dashes)
     const { normalizeSlug } = await import('@/app/utils/slug-validator');
     let normalizedSlug = normalizeSlug(imovel.Slug);

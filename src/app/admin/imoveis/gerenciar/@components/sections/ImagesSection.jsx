@@ -129,42 +129,52 @@ const ImagesSection = memo(({
       codigo,
       posicaoAtual: currentIndex + 1,
       novaPosicao: position,
-      totalFotos: sortedPhotos.length
+      totalFotos: sortedPhotos.length,
+      sortedPhotosLength: sortedPhotos.length,
+      formDataFotoLength: formData?.Foto?.length || 0
     });
 
     if (!isNaN(position) && position > 0 && position <= sortedPhotos.length && (position - 1) !== currentIndex) {
 
-      // 1. Reorganizar array
+      // 1. Reorganizar array baseado em sortedPhotos (ordem visual atual)
       const novaOrdem = [...sortedPhotos];
       const fotoMovida = novaOrdem[currentIndex];
 
+      // Remover da posição atual
       novaOrdem.splice(currentIndex, 1);
+      // Inserir na nova posição
       novaOrdem.splice(position - 1, 0, fotoMovida);
 
       // 2. Adicionar campo ordem manual em TODAS as fotos
+      // IMPORTANTE: Usar índice 0-based para Ordem, mas garantir que todas as fotos tenham Ordem única
       const fotosComOrdem = novaOrdem.map((foto, index) => ({
         ...foto,
-        Ordem: index, // índice 0-based
+        Ordem: index, // índice 0-based - photoSorter respeita isso quando tipoOrdenacao é 'manual'
         tipoOrdenacao: 'manual' // Marcar como ajuste manual na ordem inteligente
       }));
 
-      console.log('ADMIN: Nova ordem aplicada (ordem inteligente + ajustes)');
+      console.log('ADMIN: Nova ordem aplicada (ordem inteligente + ajustes)', {
+        totalFotos: fotosComOrdem.length,
+        ordens: fotosComOrdem.map(f => ({ codigo: f.Codigo, ordem: f.Ordem }))
+      });
 
-      // 3. Atualizar no componente pai IMEDIATAMENTE
+      // 3. Atualizar no componente pai IMEDIATAMENTE (CRÍTICO: deve atualizar formData.Foto)
       if (typeof onUpdatePhotos === 'function') {
-        console.log('ADMIN: Atualizando fotos no componente pai...');
+        console.log('ADMIN: Atualizando fotos no componente pai via onUpdatePhotos...');
         onUpdatePhotos(fotosComOrdem);
+      } else {
+        console.warn('ADMIN: onUpdatePhotos não está disponível!');
       }
 
-      // 4. Tentar persistir no banco (função opcional do componente pai)
-      if (typeof changeImagePosition === 'function') {
-        try {
-          console.log('ADMIN: Persistindo nova ordem no banco...');
-          await Promise.resolve(changeImagePosition(codigo, position));
-        } catch (error) {
-          console.error('ADMIN: Erro ao persistir nova ordem:', error);
-        }
-      }
+      // 4. NÃO chamar changeImagePosition aqui porque já atualizamos via onUpdatePhotos
+      // changeImagePosition é apenas um fallback e pode causar conflitos
+    } else {
+      console.warn('ADMIN: Posição inválida ou já está na posição desejada', {
+        position,
+        currentIndex: currentIndex + 1,
+        isValid: !isNaN(position) && position > 0 && position <= sortedPhotos.length,
+        isDifferent: (position - 1) !== currentIndex
+      });
     }
   };
 
