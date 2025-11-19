@@ -4,7 +4,7 @@ import { getCityValidSlugsSync, converterSlugCidadeSync } from "@/app/utils/url-
 import { getSlugFromCache } from "@/app/utils/slug-cache";
 
 // Reserved slugs that should NOT be cached (always check database)
-const RESERVED_SLUGS = ['busca', 'sobre', 'contato', 'admin', 'api', 'sitemap.xml', 'robots.txt', 'bairros'];
+const RESERVED_SLUGS = ['busca', 'sobre', 'contato', 'admin', 'api', 'sitemap.xml', 'robots.txt'];
 
 /**
  * Cache wrapper for getImovelById using new slug cache
@@ -1570,6 +1570,7 @@ export async function middleware(request) {
     'login',
     'cadastro',
     'recuperar-senha',
+    'bairros',
   ]);
   const slugCandidate = pathname.slice(1);
   const isCondominioPattern = pathname.match(/^\/[a-z0-9-]+$/);
@@ -1618,11 +1619,11 @@ export async function middleware(request) {
   const padroesPemitidos = [
     /^\/api\//,           // APIs
     /^\/admin\//,         // Admin routes
-    /^\/bairros\//,       // Bairros routes
     /^\/_next\//,         // Next.js assets
     /^\/favicon\./,       // Favicons
     /^\/robots\.txt$/,    // Robots
     /^\/sitemap/,         // Sitemaps
+    /^\/bairros/,         // Bairros pages and sub-routes
     /^\/.*\.(ico|png|jpg|jpeg|gif|svg|css|js|woff|woff2|ttf|eot)$/  // Assets estáticos
   ];
 
